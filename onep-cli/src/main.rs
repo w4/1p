@@ -30,6 +30,13 @@ enum Opt {
 }
 
 fn main() {
+    if let Err(e) = run() {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> anyhow::Result<()> {
     let imp = onep_api_op::OnepasswordOp {};
 
     match Opt::parse() {
@@ -37,9 +44,9 @@ fn main() {
             show_uuids,
             show_account_names,
         } => {
-            let account = imp.account();
-            let vaults = imp.vaults();
-            let results = imp.search(None);
+            let account = imp.account()?;
+            let vaults = imp.vaults()?;
+            let results = imp.search(None)?;
 
             let mut results_grouped: Vec<(_, Vec<_>)> = Vec::new();
             for (key, group) in &results.into_iter().group_by(|v| v.vault_uuid.clone()) {
@@ -108,9 +115,9 @@ fn main() {
                 }
             }
         }
-        Opt::Totp { uuid } => println!("{}", imp.totp(&uuid).trim()),
+        Opt::Totp { uuid } => println!("{}", imp.totp(&uuid)?.trim()),
         Opt::Search { terms } => {
-            for result in imp.search(Some(&terms)) {
+            for result in imp.search(Some(&terms))? {
                 println!("[{}]", result.title.green());
                 println!("{}", result.account_info);
                 println!("{}", result.uuid);
@@ -118,7 +125,7 @@ fn main() {
             }
         }
         Opt::Show { uuid } => {
-            let result = imp.get(&uuid).unwrap();
+            let result = imp.get(&uuid)?.unwrap();
 
             let mut table = Table::new();
             table.style = TableStyle::extended();
@@ -165,4 +172,6 @@ fn main() {
             }
         }
     }
+
+    Ok(())
 }
