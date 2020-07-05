@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "onep-cli",
+    "onep-api",
+    "onep-api-op",
+]

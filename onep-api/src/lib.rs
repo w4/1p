@@ -1,0 +1,46 @@
+#[derive(Debug)]
+pub struct AccountMetadata {
+    pub name: String,
+    pub domain: String,
+}
+
+#[derive(Debug)]
+pub struct VaultMetadata {
+    pub uuid: String,
+    pub name: String,
+}
+
+#[derive(Debug)]
+pub struct ItemMetadata {
+    pub uuid: String,
+    pub vault_uuid: String,
+    pub title: String,
+    pub account_info: String,
+}
+
+#[derive(Debug)]
+pub struct Item {
+    pub title: String,
+    pub fields: Vec<ItemField>,
+    pub sections: Vec<ItemSection>,
+}
+
+#[derive(Debug)]
+pub struct ItemField {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug)]
+pub struct ItemSection {
+    pub name: String,
+    pub fields: Vec<ItemField>,
+}
+
+pub trait OnePassword {
+    fn totp(&self, uuid: &str) -> String;
+    fn account(&self) -> AccountMetadata;
+    fn vaults(&self) -> Vec<VaultMetadata>;
+    fn search(&self, terms: Option<&str>) -> Vec<ItemMetadata>;
+    fn get(&self, uuid: &str) -> Option<Item>;
+}
