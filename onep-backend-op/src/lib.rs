@@ -1,5 +1,6 @@
 #![deny(clippy::pedantic)]
 
+use onep_backend_api as api;
 use serde::Deserialize;
 use serde_json::Value;
 use std::borrow::Cow;
@@ -23,9 +24,9 @@ struct GetAccount {
     domain: String,
 }
 
-impl Into<onep_api::AccountMetadata> for GetAccount {
-    fn into(self) -> onep_api::AccountMetadata {
-        onep_api::AccountMetadata {
+impl Into<api::AccountMetadata> for GetAccount {
+    fn into(self) -> api::AccountMetadata {
+        api::AccountMetadata {
             name: self.name,
             domain: self.domain,
         }
@@ -38,9 +39,9 @@ struct ListVault {
     name: String,
 }
 
-impl Into<onep_api::VaultMetadata> for ListVault {
-    fn into(self) -> onep_api::VaultMetadata {
-        onep_api::VaultMetadata {
+impl Into<api::VaultMetadata> for ListVault {
+    fn into(self) -> api::VaultMetadata {
+        api::VaultMetadata {
             uuid: self.uuid,
             name: self.name,
         }
@@ -57,9 +58,9 @@ struct ListItem {
     overview: ItemOverview,
 }
 
-impl Into<onep_api::ItemMetadata> for ListItem {
-    fn into(self) -> onep_api::ItemMetadata {
-        onep_api::ItemMetadata {
+impl Into<api::ItemMetadata> for ListItem {
+    fn into(self) -> api::ItemMetadata {
+        api::ItemMetadata {
             title: self.overview.title,
             account_info: self.overview.account_info,
             uuid: self.uuid,
@@ -95,28 +96,28 @@ struct GetItem {
     overview: ItemOverview,
 }
 
-impl Into<onep_api::Item> for GetItem {
-    fn into(self) -> onep_api::Item {
-        onep_api::Item {
+impl Into<api::Item> for GetItem {
+    fn into(self) -> api::Item {
+        api::Item {
             title: self.overview.title,
             fields: self
                 .details
                 .fields
                 .into_iter()
                 .map(|f| f.into())
-                .filter(|f: &onep_api::ItemField| !f.value.is_empty())
+                .filter(|f: &api::ItemField| !f.value.is_empty())
                 .collect(),
             sections: self
                 .details
                 .sections
                 .into_iter()
-                .map(|v| onep_api::ItemSection {
+                .map(|v| api::ItemSection {
                     name: v.title,
                     fields: v
                         .fields
                         .into_iter()
                         .map(|f| f.into())
-                        .filter(|f: &onep_api::ItemField| !f.value.is_empty())
+                        .filter(|f: &api::ItemField| !f.value.is_empty())
                         .collect(),
                 })
                 .collect(),
@@ -140,9 +141,9 @@ struct GetItemDetailsField {
     value: Value,
 }
 
-impl Into<onep_api::ItemField> for GetItemDetailsField {
-    fn into(self) -> onep_api::ItemField {
-        onep_api::ItemField {
+impl Into<api::ItemField> for GetItemDetailsField {
+    fn into(self) -> api::ItemField {
+        api::ItemField {
             name: self.field_type,
             value: match self.value {
                 Value::Null => String::new(),
@@ -174,9 +175,9 @@ struct GetItemSectionField {
     value: Value,
 }
 
-impl Into<onep_api::ItemField> for GetItemSectionField {
-    fn into(self) -> onep_api::ItemField {
-        onep_api::ItemField {
+impl Into<api::ItemField> for GetItemSectionField {
+    fn into(self) -> api::ItemField {
+        api::ItemField {
             name: self.field_type,
             value: match self.value {
                 Value::Null => String::new(),
@@ -196,7 +197,7 @@ struct CreateItem {
     vault_uuid: String,
 }
 
-pub struct OnepasswordOp {}
+pub struct OpBackend {}
 
 fn exec<I, S>(args: I) -> Result<Vec<u8>, Error>
 where
@@ -217,27 +218,27 @@ where
     }
 }
 
-impl onep_api::OnePassword for OnepasswordOp {
+impl api::Backend for OpBackend {
     type Error = Error;
 
     fn totp(&self, uuid: &str) -> Result<String, Self::Error> {
         Ok(std::str::from_utf8(&exec(&["get", "totp", uuid])?)?.to_string())
     }
 
-    fn account(&self) -> Result<onep_api::AccountMetadata, Self::Error> {
+    fn account(&self) -> Result<api::AccountMetadata, Self::Error> {
         let ret: GetAccount = serde_json::from_slice(&exec(&["get", "account"])?)?;
 
         Ok(ret.into())
     }
 
-    fn vaults(&self) -> Result<Vec<onep_api::VaultMetadata>, Self::Error> {
+    fn vaults(&self) -> Result<Vec<api::VaultMetadata>, Self::Error> {
         let ret: Vec<ListVault> = serde_json::from_slice(&exec(&["list", "vaults"])?)?;
 
         Ok(ret.into_iter().map(|v| v.into()).collect())
     }
 
     #[allow(clippy::filter_map)]
-    fn search(&self, terms: Option<&str>) -> Result<Vec<onep_api::ItemMetadata>, Self::Error> {
+    fn search(&self, terms: Option<&str>) -> Result<Vec<api::ItemMetadata>, Self::Error> {
         let ret: Vec<ListItem> = serde_json::from_slice(&exec(&["list", "items"])?)?;
 
         Ok(ret
@@ -258,7 +259,7 @@ impl onep_api::OnePassword for OnepasswordOp {
             .collect())
     }
 
-    fn get(&self, uuid: &str) -> Result<Option<onep_api::Item>, Self::Error> {
+    fn get(&self, uuid: &str) -> Result<Option<api::Item>, Self::Error> {
         let ret: GetItem = serde_json::from_slice(&exec(&["get", "item", uuid])?)?;
 
         Ok(Some(ret.into()))
@@ -270,7 +271,7 @@ impl onep_api::OnePassword for OnepasswordOp {
         username: Option<&str>,
         url: Option<&str>,
         tags: Option<&str>,
-    ) -> Result<onep_api::Item, Self::Error> {
+    ) -> Result<api::Item, Self::Error> {
         let mut args = Vec::with_capacity(12);
 
         args.push(Cow::Borrowed("create"));

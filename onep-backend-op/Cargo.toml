@@ -1,5 +1,5 @@
 [package]
-name = "onep-api-op"
+name = "onep-backend-op"
 version = "0.1.0"
 authors = ["Jordan Doyle <jordan@doyle.la>"]
 edition = "2018"
@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-onep-api = { path = "../onep-api" }
+onep-backend-api = { path = "../onep-backend-api" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_with = "1.5.0-alpha.1"

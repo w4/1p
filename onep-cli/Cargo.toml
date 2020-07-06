@@ -11,8 +11,8 @@ path = "src/main.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-onep-api = { path = "../onep-api" }
-onep-api-op = { path = "../onep-api-op" }
+onep-backend-api = { path = "../onep-backend-api" }
+onep-backend-op = { path = "../onep-backend-op" }
 
 clap = { git = "https://github.com/clap-rs/clap" }
 term-table = "1.3"

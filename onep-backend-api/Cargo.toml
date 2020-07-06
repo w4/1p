@@ -1,5 +1,5 @@
 [package]
-name = "onep-api"
+name = "onep-backend-api"
 version = "0.1.0"
 authors = ["Jordan Doyle <jordan@doyle.la>"]
 edition = "2018"

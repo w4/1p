@@ -3,7 +3,8 @@
 use clap::Clap;
 use colored::Colorize;
 use itertools::Itertools;
-use onep_api::OnePassword;
+use onep_backend_api as api;
+use onep_backend_op as backend;
 use term_table::{
     row::Row,
     table_cell::{Alignment, TableCell},
@@ -53,14 +54,14 @@ enum Opt {
 }
 
 fn main() {
-    if let Err(e) = run(&onep_api_op::OnepasswordOp {}) {
+    if let Err(e) = run(&backend::OpBackend {}) {
         eprintln!("{}", e);
         std::process::exit(1);
     }
 }
 
 #[allow(clippy::non_ascii_literal)]
-fn run<T: OnePassword>(imp: &T) -> anyhow::Result<()>
+fn run<T: api::Backend>(imp: &T) -> anyhow::Result<()>
 where
     T::Error: 'static + std::error::Error + Send + Sync,
 {
@@ -167,7 +168,7 @@ where
     Ok(())
 }
 
-fn show(item: onep_api::Item) {
+fn show(item: api::Item) {
     let mut table = Table::new();
     table.style = TableStyle::extended();
 

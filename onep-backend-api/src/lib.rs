@@ -40,7 +40,7 @@ pub struct ItemSection {
     pub fields: Vec<ItemField>,
 }
 
-pub trait OnePassword {
+pub trait Backend {
     type Error;
 
     fn totp(&self, uuid: &str) -> Result<String, Self::Error>;
