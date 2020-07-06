@@ -8,6 +8,12 @@ use term_table::{
     Table, TableStyle,
 };
 
+#[derive(thiserror::Error, Debug)]
+enum Error {
+    #[error("Couldn't find the requested item.")]
+    NotFound,
+}
+
 #[derive(Clap, Debug)]
 #[clap(author, version)]
 /// 1password cli for humans
@@ -125,7 +131,7 @@ fn run() -> anyhow::Result<()> {
             }
         }
         Opt::Show { uuid } => {
-            let result = imp.get(&uuid)?.unwrap();
+            let result = imp.get(&uuid)?.ok_or(Error::NotFound)?;
 
             let mut table = Table::new();
             table.style = TableStyle::extended();

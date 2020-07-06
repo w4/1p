@@ -1,7 +1,18 @@
 use serde::Deserialize;
 use serde_json::Value;
-use onep_api::OnePasswordApiError;
 use std::process::Command;
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("op backend returned an error:\n{0}")]
+    Backend(String),
+    #[error("failed to exec backend:\n{0}")]
+    Exec(std::io::Error),
+    #[error("failed to parse json from op:\n{0}")]
+    Json(#[from] serde_json::error::Error),
+    #[error("failed to convert op response to utf-8:\n{0}")]
+    Utf8(#[from] std::str::Utf8Error)
+}
 
 #[derive(Debug, Deserialize)]
 struct GetAccount {
@@ -120,26 +131,28 @@ impl Into<onep_api::ItemField> for GetItemSectionField {
 pub struct OnepasswordOp {}
 
 impl OnepasswordOp {
-    fn exec(&self, args: &[&str]) -> Result<Vec<u8>, OnePasswordApiError> {
-        let cmd = Command::new("op").args(args).output().map_err(OnePasswordApiError::Exec)?;
+    fn exec(&self, args: &[&str]) -> Result<Vec<u8>, Error> {
+        let cmd = Command::new("op").args(args).output().map_err(Error::Exec)?;
 
         if cmd.status.success() {
             Ok(cmd.stdout)
         } else {
-            Err(OnePasswordApiError::Backend(
-                std::str::from_utf8(&cmd.stderr).unwrap().to_string()
+            Err(Error::Backend(
+                std::str::from_utf8(&cmd.stderr)?.to_string()
             ))
         }
     }
 }
 
 impl onep_api::OnePassword for OnepasswordOp {
-    fn totp(&self, uuid: &str) -> Result<String, OnePasswordApiError> {
-        Ok(std::str::from_utf8(&self.exec(&["get", "totp", uuid])?).unwrap().to_string())
+    type Error = Error;
+
+    fn totp(&self, uuid: &str) -> Result<String, Self::Error> {
+        Ok(std::str::from_utf8(&self.exec(&["get", "totp", uuid])?)?.to_string())
     }
 
-    fn account(&self) -> Result<onep_api::AccountMetadata, OnePasswordApiError> {
-        let ret: GetAccount = serde_json::from_slice(&self.exec(&["get", "account"])?).unwrap();
+    fn account(&self) -> Result<onep_api::AccountMetadata, Self::Error> {
+        let ret: GetAccount = serde_json::from_slice(&self.exec(&["get", "account"])?)?;
 
         Ok(onep_api::AccountMetadata {
             name: ret.name,
@@ -147,8 +160,8 @@ impl onep_api::OnePassword for OnepasswordOp {
         })
     }
 
-    fn vaults(&self) -> Result<Vec<onep_api::VaultMetadata>, OnePasswordApiError> {
-        let ret: Vec<ListVault> = serde_json::from_slice(&self.exec(&["list", "vaults"])?).unwrap();
+    fn vaults(&self) -> Result<Vec<onep_api::VaultMetadata>, Self::Error> {
+        let ret: Vec<ListVault> = serde_json::from_slice(&self.exec(&["list", "vaults"])?)?;
 
         Ok(ret.into_iter()
             .map(|v| onep_api::VaultMetadata {
@@ -158,8 +171,8 @@ impl onep_api::OnePassword for OnepasswordOp {
             .collect())
     }
 
-    fn search(&self, terms: Option<&str>) -> Result<Vec<onep_api::ItemMetadata>, OnePasswordApiError> {
-        let ret: Vec<ListItem> = serde_json::from_slice(&self.exec(&["list", "items"])?).unwrap();
+    fn search(&self, terms: Option<&str>) -> Result<Vec<onep_api::ItemMetadata>, Self::Error> {
+        let ret: Vec<ListItem> = serde_json::from_slice(&self.exec(&["list", "items"])?)?;
 
         Ok(ret.into_iter()
             .filter(|v| {
@@ -183,8 +196,8 @@ impl onep_api::OnePassword for OnepasswordOp {
             .collect())
     }
 
-    fn get(&self, uuid: &str) -> Result<Option<onep_api::Item>, OnePasswordApiError> {
-        let ret: GetItem = serde_json::from_slice(&self.exec(&["get", "item", uuid])?).unwrap();
+    fn get(&self, uuid: &str) -> Result<Option<onep_api::Item>, Self::Error> {
+        let ret: GetItem = serde_json::from_slice(&self.exec(&["get", "item", uuid])?)?;
 
         Ok(Some(onep_api::Item {
             title: ret.overview.title,
