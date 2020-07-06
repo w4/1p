@@ -1,3 +1,10 @@
+//! A backend for the [op] tool distributed by `AgileBits`. This crate uses
+//! [onep_backend_api::Backend] to provide an implementation of a 1password
+//! backend for use 1p-cli.
+//!
+//! [op]: https://1password.com/downloads/command-line/
+//! [onep_backend_api::Backend]: ../onep_backend_api/trait.Backend.html
+
 #![deny(clippy::pedantic)]
 
 use onep_backend_api as api;
