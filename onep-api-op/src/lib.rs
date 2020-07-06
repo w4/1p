@@ -2,6 +2,7 @@
 
 use serde::Deserialize;
 use serde_json::Value;
+use std::borrow::Cow;
 use std::process::Command;
 
 #[derive(thiserror::Error, Debug)]
@@ -188,9 +189,20 @@ impl Into<onep_api::ItemField> for GetItemSectionField {
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateItem {
+    uuid: String,
+    vault_uuid: String,
+}
+
 pub struct OnepasswordOp {}
 
-fn exec(args: &[&str]) -> Result<Vec<u8>, Error> {
+fn exec<I, S>(args: I) -> Result<Vec<u8>, Error>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<std::ffi::OsStr>,
+{
     let cmd = Command::new("op")
         .args(args)
         .output()
@@ -250,5 +262,40 @@ impl onep_api::OnePassword for OnepasswordOp {
         let ret: GetItem = serde_json::from_slice(&exec(&["get", "item", uuid])?)?;
 
         Ok(Some(ret.into()))
+    }
+
+    fn generate(
+        &self,
+        name: &str,
+        username: Option<&str>,
+        url: Option<&str>,
+        tags: Option<&str>,
+    ) -> Result<onep_api::Item, Self::Error> {
+        let mut args = Vec::with_capacity(12);
+
+        args.push(Cow::Borrowed("create"));
+        args.push(Cow::Borrowed("item"));
+        args.push(Cow::Borrowed("Login"));
+        args.push(Cow::Borrowed("--generate-password"));
+        args.push(Cow::Borrowed("--title"));
+        args.push(Cow::Borrowed(name));
+
+        if let Some(url) = url {
+            args.push(Cow::Borrowed("--url"));
+            args.push(Cow::Borrowed(url));
+        }
+
+        if let Some(tags) = tags {
+            args.push(Cow::Borrowed("--tags"));
+            args.push(Cow::Borrowed(tags));
+        }
+
+        if let Some(username) = username {
+            args.push(Cow::Owned(format!("username={}", username)));
+        }
+
+        let ret: CreateItem = serde_json::from_slice(&exec(args.iter().map(Cow::as_ref))?)?;
+
+        Ok(self.get(&ret.uuid)?.unwrap_or_else(|| unreachable!()))
     }
 }

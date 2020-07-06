@@ -48,4 +48,11 @@ pub trait OnePassword {
     fn vaults(&self) -> Result<Vec<VaultMetadata>, Self::Error>;
     fn search(&self, terms: Option<&str>) -> Result<Vec<ItemMetadata>, Self::Error>;
     fn get(&self, uuid: &str) -> Result<Option<Item>, Self::Error>;
+    fn generate(
+        &self,
+        name: &str,
+        username: Option<&str>,
+        url: Option<&str>,
+        tags: Option<&str>,
+    ) -> Result<Item, Self::Error>;
 }
