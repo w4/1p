@@ -1,5 +1,7 @@
+#![deny(clippy::pedantic)]
+
 use clap::Clap;
-use colored::*;
+use colored::Colorize;
 use itertools::Itertools;
 use onep_api::OnePassword;
 use term_table::{
@@ -36,15 +38,18 @@ enum Opt {
 }
 
 fn main() {
-    if let Err(e) = run() {
+    if let Err(e) = run(&onep_api_op::OnepasswordOp {}) {
         eprintln!("{}", e);
         std::process::exit(1);
     }
 }
 
-fn run() -> anyhow::Result<()> {
-    let imp = onep_api_op::OnepasswordOp {};
-
+#[warn(clippy::too_many_lines)]
+#[allow(clippy::non_ascii_literal)]
+fn run<T: OnePassword>(imp: &T) -> anyhow::Result<()>
+where
+    T::Error: 'static + std::error::Error + Send + Sync,
+{
     match Opt::parse() {
         Opt::Ls {
             show_uuids,
@@ -67,8 +72,7 @@ fn run() -> anyhow::Result<()> {
                 let vault = vaults
                     .iter()
                     .find(|v| v.uuid == vault)
-                    .map(|v| v.name.clone())
-                    .unwrap_or_else(|| format!("Unknown Vault ({})", vault));
+                    .map_or_else(|| format!("Unknown Vault ({})", vault), |v| v.name.clone());
 
                 println!(
                     "{} {}",
