@@ -25,14 +25,14 @@ enum Opt {
     /// List all items
     #[clap(alias = "ls")]
     List {
-        #[clap(long, short = 'i')]
+        #[clap(long, short = 'u')]
         show_uuids: bool,
         #[clap(long, short = 'n')]
         show_account_names: bool,
     },
     /// Search for an item
     Search {
-        #[clap(long, short = 'i')]
+        #[clap(long, short = 'u')]
         show_uuids: bool,
         #[clap(long, short = 'n')]
         show_account_names: bool,
