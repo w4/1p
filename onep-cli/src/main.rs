@@ -5,6 +5,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use onep_backend_api as api;
 use onep_backend_op as backend;
+use std::collections::BTreeMap;
 use term_table::{
     row::Row,
     table_cell::{Alignment, TableCell},
@@ -29,10 +30,16 @@ enum Opt {
         #[clap(long, short = 'n')]
         show_account_names: bool,
     },
+    /// Search for an item
+    Search {
+        #[clap(long, short = 'i')]
+        show_uuids: bool,
+        #[clap(long, short = 'n')]
+        show_account_names: bool,
+        terms: String,
+    },
     /// Grab a two-factor authentication code for the given item
     Totp { uuid: String },
-    /// Search for an item
-    Search { terms: String },
     /// Show existing password and optionally put it on the clipboard
     #[clap(alias = "get")]
     Show { uuid: String },
@@ -61,8 +68,7 @@ async fn main() {
     }
 }
 
-#[allow(clippy::non_ascii_literal)]
-async fn run<T: api::Backend>(imp: &T) -> anyhow::Result<()>
+async fn run<T: api::Backend>(backend: &T) -> anyhow::Result<()>
 where
     T::Error: 'static + std::error::Error + Send + Sync,
 {
@@ -70,87 +76,15 @@ where
         Opt::List {
             show_uuids,
             show_account_names,
-        } => {
-            let (account, vaults, results) =
-                tokio::try_join!(imp.account(), imp.vaults(), imp.search(None),)?;
-
-            let mut results_grouped: Vec<(_, Vec<_>)> = Vec::new();
-            for (key, group) in &results.into_iter().group_by(|v| v.vault_uuid.clone()) {
-                results_grouped.push((key, group.collect()));
-            }
-
-            println!("{} ({})", account.name, account.domain);
-
-            let vault_count = results_grouped.len() - 1;
-
-            for (current_vault_index, (vault, group)) in results_grouped.into_iter().enumerate() {
-                let vault = vaults
-                    .iter()
-                    .find(|v| v.uuid == vault)
-                    .map_or_else(|| format!("Unknown Vault ({})", vault), |v| v.name.clone());
-
-                println!(
-                    "{} {}",
-                    if current_vault_index < vault_count {
-                        "├──"
-                    } else {
-                        "└──"
-                    },
-                    vault.blue()
-                );
-
-                let line_start = if current_vault_index < vault_count {
-                    "│"
-                } else {
-                    " "
-                };
-
-                let item_count = group.len() - 1;
-
-                for (current_item_index, result) in group.into_iter().enumerate() {
-                    println!(
-                        "{}   {} {}",
-                        line_start,
-                        if current_item_index < item_count {
-                            "├──"
-                        } else {
-                            "└──"
-                        },
-                        result.title.trim()
-                    );
-
-                    let prefix = if current_item_index < item_count {
-                        "│  "
-                    } else {
-                        "   "
-                    };
-
-                    if show_account_names && !result.account_info.trim().is_empty() {
-                        println!(
-                            "{}   {} {}",
-                            line_start,
-                            prefix,
-                            result.account_info.trim().green()
-                        );
-                    }
-
-                    if show_uuids {
-                        println!("{}   {} {}", line_start, prefix, result.uuid.yellow());
-                    }
-                }
-            }
-        }
-        Opt::Totp { uuid } => println!("{}", imp.totp(&uuid).await?.trim()),
-        Opt::Search { terms } => {
-            for result in imp.search(Some(&terms)).await? {
-                println!("[{}]", result.title.green());
-                println!("{}", result.account_info);
-                println!("{}", result.uuid);
-                println!();
-            }
-        }
+        } => search(backend, None, show_uuids, show_account_names).await?,
+        Opt::Search {
+            terms,
+            show_uuids,
+            show_account_names,
+        } => search(backend, Some(terms), show_uuids, show_account_names).await?,
+        Opt::Totp { uuid } => println!("{}", backend.totp(&uuid).await?.trim()),
         Opt::Show { uuid } => {
-            let result = imp.get(&uuid).await?.ok_or(Error::NotFound)?;
+            let result = backend.get(&uuid).await?.ok_or(Error::NotFound)?;
             show(result);
         }
         Opt::Generate {
@@ -159,10 +93,105 @@ where
             url,
             tags,
         } => {
-            let result = imp
+            let result = backend
                 .generate(&name, username.as_deref(), url.as_deref(), tags.as_deref())
                 .await?;
             show(result);
+        }
+    }
+
+    Ok(())
+}
+
+#[allow(clippy::non_ascii_literal)]
+async fn search<T: api::Backend>(
+    backend: &T,
+    terms: Option<String>,
+    show_uuids: bool,
+    show_account_names: bool,
+) -> anyhow::Result<()>
+where
+    T::Error: 'static + std::error::Error + Send + Sync,
+{
+    let (account, vaults, results) = tokio::try_join!(
+        backend.account(),
+        backend.vaults(),
+        backend.search(terms.as_deref())
+    )?;
+
+    let mut results_grouped: BTreeMap<_, Vec<_>> = BTreeMap::new();
+    for (key, group) in &results.into_iter().group_by(|v| v.vault_uuid.clone()) {
+        results_grouped.insert(key, group.collect());
+    }
+
+    // slow path for when vault is an exact match
+    if let Some(terms) = terms {
+        if let Some(vault) = vaults
+            .iter()
+            .find(|v| v.name.to_lowercase() == terms.to_lowercase())
+        {
+            results_grouped.insert(vault.uuid.clone(), backend.search(Some(&vault.uuid)).await?);
+        }
+    }
+
+    println!("{} ({})", account.name, account.domain);
+
+    let vault_count = results_grouped.len() - 1;
+
+    for (current_vault_index, (vault, group)) in results_grouped.into_iter().enumerate() {
+        let vault = vaults
+            .iter()
+            .find(|v| v.uuid == vault)
+            .map_or_else(|| format!("Unknown Vault ({})", vault), |v| v.name.clone());
+
+        println!(
+            "{} {}",
+            if current_vault_index < vault_count {
+                "├──"
+            } else {
+                "└──"
+            },
+            vault.blue()
+        );
+
+        let line_start = if current_vault_index < vault_count {
+            "│"
+        } else {
+            " "
+        };
+
+        let item_count = group.len() - 1;
+
+        for (current_item_index, result) in group.into_iter().enumerate() {
+            println!(
+                "{}   {} {}",
+                line_start,
+                if current_item_index < item_count {
+                    "├──"
+                } else {
+                    "└──"
+                },
+                result.title.trim()
+            );
+
+            let prefix = if current_item_index < item_count {
+                "│  "
+            } else {
+                "   "
+            };
+
+            if show_account_names && !result.account_info.trim().is_empty() {
+                println!(
+                    "{}   {} {}",
+                    line_start,
+                    prefix,
+                    result.account_info.trim().green()
+                );
+            }
+
+            if show_uuids {
+                println!("{}   {} {}", line_start, prefix, result.uuid.yellow());
+            }
         }
     }
 

@@ -1,9 +1,8 @@
 //! A backend for the [op] tool distributed by `AgileBits`. This crate uses
-//! [onep_backend_api::Backend] to provide an implementation of a 1password
+//! `onep_backend_api::Backend` to provide an implementation of a 1password
 //! backend for use 1p-cli.
 //!
 //! [op]: https://1password.com/downloads/command-line/
-//! [onep_backend_api::Backend]: ../onep_backend_api/trait.Backend.html
 
 #![deny(clippy::pedantic)]
 
@@ -251,16 +250,26 @@ impl api::Backend for OpBackend {
     async fn search(&self, terms: Option<&str>) -> Result<Vec<api::ItemMetadata>, Self::Error> {
         let ret: Vec<ListItem> = serde_json::from_slice(&exec(&["list", "items"]).await?)?;
 
+        let terms = terms.map(str::to_lowercase);
+
         Ok(ret
             .into_iter()
             .filter(|v| {
-                if let Some(terms) = terms {
+                if let Some(terms) = &terms {
+                    let terms = terms.as_ref();
+
                     v.uuid == terms
                         || v.vault_uuid == terms
-                        || v.overview.urls.iter().any(|v| v.url.contains(terms))
-                        || v.overview.title.contains(terms)
-                        || v.overview.account_info.contains(terms)
-                        || v.overview.tags.iter().any(|v| v.contains(terms))
+                        || v.overview
+                            .urls
+                            .iter()
+                            .any(|v| v.url.to_lowercase().contains(terms))
+                        || v.overview.title.to_lowercase().contains(terms)
+                        || v.overview.account_info.to_lowercase().contains(terms)
+                        || v.overview
+                            .tags
+                            .iter()
+                            .any(|v| v.to_lowercase().contains(terms))
                 } else {
                     true
                 }
