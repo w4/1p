@@ -14,6 +14,8 @@ path = "src/main.rs"
 onep-backend-api = { path = "../onep-backend-api" }
 onep-backend-op = { path = "../onep-backend-op" }
 
+tokio = { version = "0.2", features = ["full"] }
+
 clap = { git = "https://github.com/clap-rs/clap" }
 term-table = "1.3"
 itertools = "0.9"

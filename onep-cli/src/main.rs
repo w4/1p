@@ -53,15 +53,16 @@ enum Opt {
     },
 }
 
-fn main() {
-    if let Err(e) = run(&backend::OpBackend {}) {
+#[tokio::main(core_threads = 1)]
+async fn main() {
+    if let Err(e) = run(&backend::OpBackend {}).await {
         eprintln!("{}", e);
         std::process::exit(1);
     }
 }
 
 #[allow(clippy::non_ascii_literal)]
-fn run<T: api::Backend>(imp: &T) -> anyhow::Result<()>
+async fn run<T: api::Backend>(imp: &T) -> anyhow::Result<()>
 where
     T::Error: 'static + std::error::Error + Send + Sync,
 {
@@ -70,9 +71,8 @@ where
             show_uuids,
             show_account_names,
         } => {
-            let account = imp.account()?;
-            let vaults = imp.vaults()?;
-            let results = imp.search(None)?;
+            let (account, vaults, results) =
+                tokio::try_join!(imp.account(), imp.vaults(), imp.search(None),)?;
 
             let mut results_grouped: Vec<(_, Vec<_>)> = Vec::new();
             for (key, group) in &results.into_iter().group_by(|v| v.vault_uuid.clone()) {
@@ -140,9 +140,9 @@ where
                 }
             }
         }
-        Opt::Totp { uuid } => println!("{}", imp.totp(&uuid)?.trim()),
+        Opt::Totp { uuid } => println!("{}", imp.totp(&uuid).await?.trim()),
         Opt::Search { terms } => {
-            for result in imp.search(Some(&terms))? {
+            for result in imp.search(Some(&terms)).await? {
                 println!("[{}]", result.title.green());
                 println!("{}", result.account_info);
                 println!("{}", result.uuid);
@@ -150,7 +150,7 @@ where
             }
         }
         Opt::Show { uuid } => {
-            let result = imp.get(&uuid)?.ok_or(Error::NotFound)?;
+            let result = imp.get(&uuid).await?.ok_or(Error::NotFound)?;
             show(result);
         }
         Opt::Generate {
@@ -159,8 +159,9 @@ where
             url,
             tags,
         } => {
-            let result =
-                imp.generate(&name, username.as_deref(), url.as_deref(), tags.as_deref())?;
+            let result = imp
+                .generate(&name, username.as_deref(), url.as_deref(), tags.as_deref())
+                .await?;
             show(result);
         }
     }

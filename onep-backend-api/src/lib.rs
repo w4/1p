@@ -1,6 +1,8 @@
 #![deny(clippy::pedantic)]
 #![allow(clippy::missing_errors_doc)]
 
+use async_trait::async_trait;
+
 #[derive(Debug)]
 pub struct AccountMetadata {
     pub name: String,
@@ -40,15 +42,16 @@ pub struct ItemSection {
     pub fields: Vec<ItemField>,
 }
 
+#[async_trait]
 pub trait Backend {
     type Error;
 
-    fn totp(&self, uuid: &str) -> Result<String, Self::Error>;
-    fn account(&self) -> Result<AccountMetadata, Self::Error>;
-    fn vaults(&self) -> Result<Vec<VaultMetadata>, Self::Error>;
-    fn search(&self, terms: Option<&str>) -> Result<Vec<ItemMetadata>, Self::Error>;
-    fn get(&self, uuid: &str) -> Result<Option<Item>, Self::Error>;
-    fn generate(
+    async fn totp(&self, uuid: &str) -> Result<String, Self::Error>;
+    async fn account(&self) -> Result<AccountMetadata, Self::Error>;
+    async fn vaults(&self) -> Result<Vec<VaultMetadata>, Self::Error>;
+    async fn search(&self, terms: Option<&str>) -> Result<Vec<ItemMetadata>, Self::Error>;
+    async fn get(&self, uuid: &str) -> Result<Option<Item>, Self::Error>;
+    async fn generate(
         &self,
         name: &str,
         username: Option<&str>,

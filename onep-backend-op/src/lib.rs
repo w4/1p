@@ -7,11 +7,12 @@
 
 #![deny(clippy::pedantic)]
 
+use async_trait::async_trait;
 use onep_backend_api as api;
 use serde::Deserialize;
 use serde_json::Value;
 use std::borrow::Cow;
-use std::process::Command;
+use tokio::process::Command;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -206,7 +207,7 @@ struct CreateItem {
 
 pub struct OpBackend {}
 
-fn exec<I, S>(args: I) -> Result<Vec<u8>, Error>
+async fn exec<I, S>(args: I) -> Result<Vec<u8>, Error>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<std::ffi::OsStr>,
@@ -214,6 +215,7 @@ where
     let cmd = Command::new("op")
         .args(args)
         .output()
+        .await
         .map_err(Error::Exec)?;
 
     if cmd.status.success() {
@@ -225,28 +227,29 @@ where
     }
 }
 
+#[async_trait]
 impl api::Backend for OpBackend {
     type Error = Error;
 
-    fn totp(&self, uuid: &str) -> Result<String, Self::Error> {
-        Ok(std::str::from_utf8(&exec(&["get", "totp", uuid])?)?.to_string())
+    async fn totp(&self, uuid: &str) -> Result<String, Self::Error> {
+        Ok(std::str::from_utf8(&exec(&["get", "totp", uuid]).await?)?.to_string())
     }
 
-    fn account(&self) -> Result<api::AccountMetadata, Self::Error> {
-        let ret: GetAccount = serde_json::from_slice(&exec(&["get", "account"])?)?;
+    async fn account(&self) -> Result<api::AccountMetadata, Self::Error> {
+        let ret: GetAccount = serde_json::from_slice(&exec(&["get", "account"]).await?)?;
 
         Ok(ret.into())
     }
 
-    fn vaults(&self) -> Result<Vec<api::VaultMetadata>, Self::Error> {
-        let ret: Vec<ListVault> = serde_json::from_slice(&exec(&["list", "vaults"])?)?;
+    async fn vaults(&self) -> Result<Vec<api::VaultMetadata>, Self::Error> {
+        let ret: Vec<ListVault> = serde_json::from_slice(&exec(&["list", "vaults"]).await?)?;
 
         Ok(ret.into_iter().map(|v| v.into()).collect())
     }
 
     #[allow(clippy::filter_map)]
-    fn search(&self, terms: Option<&str>) -> Result<Vec<api::ItemMetadata>, Self::Error> {
-        let ret: Vec<ListItem> = serde_json::from_slice(&exec(&["list", "items"])?)?;
+    async fn search(&self, terms: Option<&str>) -> Result<Vec<api::ItemMetadata>, Self::Error> {
+        let ret: Vec<ListItem> = serde_json::from_slice(&exec(&["list", "items"]).await?)?;
 
         Ok(ret
             .into_iter()
@@ -266,13 +269,13 @@ impl api::Backend for OpBackend {
             .collect())
     }
 
-    fn get(&self, uuid: &str) -> Result<Option<api::Item>, Self::Error> {
-        let ret: GetItem = serde_json::from_slice(&exec(&["get", "item", uuid])?)?;
+    async fn get(&self, uuid: &str) -> Result<Option<api::Item>, Self::Error> {
+        let ret: GetItem = serde_json::from_slice(&exec(&["get", "item", uuid]).await?)?;
 
         Ok(Some(ret.into()))
     }
 
-    fn generate(
+    async fn generate(
         &self,
         name: &str,
         username: Option<&str>,
@@ -302,8 +305,8 @@ impl api::Backend for OpBackend {
             args.push(Cow::Owned(format!("username={}", username)));
         }
 
-        let ret: CreateItem = serde_json::from_slice(&exec(args.iter().map(Cow::as_ref))?)?;
+        let ret: CreateItem = serde_json::from_slice(&exec(args.iter().map(Cow::as_ref)).await?)?;
 
-        Ok(self.get(&ret.uuid)?.unwrap_or_else(|| unreachable!()))
+        Ok(self.get(&ret.uuid).await?.unwrap_or_else(|| unreachable!()))
     }
 }
