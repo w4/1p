@@ -5,6 +5,7 @@
 //! [op]: https://1password.com/downloads/command-line/
 
 #![deny(clippy::pedantic)]
+#![allow(clippy::used_underscore_binding)]
 
 use async_trait::async_trait;
 use onep_backend_api as api;
@@ -151,7 +152,11 @@ struct GetItemDetailsField {
 impl Into<api::ItemField> for GetItemDetailsField {
     fn into(self) -> api::ItemField {
         api::ItemField {
-            name: self.field_type,
+            name: if self.field_type.is_empty() {
+                self.name.clone()
+            } else {
+                self.field_type
+            },
             value: match self.value {
                 Value::Null => String::new(),
                 Value::String(v) => v,
@@ -159,6 +164,7 @@ impl Into<api::ItemField> for GetItemDetailsField {
                 Value::Bool(v) => if v { "true" } else { "false" }.to_string(),
                 _ => panic!("unknown item field type for {}", self.name),
             },
+            field_type: api::ItemFieldType::Unknown,
         }
     }
 }
@@ -192,6 +198,11 @@ impl Into<api::ItemField> for GetItemSectionField {
                 Value::Number(v) => format!("{}", v),
                 Value::Bool(v) => if v { "true" } else { "false" }.to_string(),
                 _ => panic!("unknown item field type for {}", self.name),
+            },
+            field_type: if self.name.starts_with("TOTP_") {
+                api::ItemFieldType::Totp
+            } else {
+                api::ItemFieldType::Unknown
             },
         }
     }
@@ -229,10 +240,6 @@ where
 #[async_trait]
 impl api::Backend for OpBackend {
     type Error = Error;
-
-    async fn totp(&self, uuid: &str) -> Result<String, Self::Error> {
-        Ok(std::str::from_utf8(&exec(&["get", "totp", uuid]).await?)?.to_string())
-    }
 
     async fn account(&self) -> Result<api::AccountMetadata, Self::Error> {
         let ret: GetAccount = serde_json::from_slice(&exec(&["get", "account"]).await?)?;
@@ -280,7 +287,6 @@ impl api::Backend for OpBackend {
 
     async fn get(&self, uuid: &str) -> Result<Option<api::Item>, Self::Error> {
         let ret: GetItem = serde_json::from_slice(&exec(&["get", "item", uuid]).await?)?;
-
         Ok(Some(ret.into()))
     }
 

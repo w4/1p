@@ -23,3 +23,6 @@ colored = "1.9"
 
 thiserror = "1.0"
 anyhow = "1.0"
+
+libreauth = "0.13"
+url = "2.1"

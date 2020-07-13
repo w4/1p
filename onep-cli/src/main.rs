@@ -1,11 +1,14 @@
 #![deny(clippy::pedantic)]
+#![allow(clippy::used_underscore_binding)]
+
+mod otp;
 
 use clap::Clap;
 use colored::Colorize;
 use itertools::Itertools;
 use onep_backend_api as api;
 use onep_backend_op as backend;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, convert::TryFrom};
 use term_table::{
     row::Row,
     table_cell::{Alignment, TableCell},
@@ -38,8 +41,6 @@ enum Opt {
         show_account_names: bool,
         terms: String,
     },
-    /// Grab a two-factor authentication code for the given item
-    Totp { uuid: String },
     /// Show existing password and optionally put it on the clipboard
     #[clap(alias = "get")]
     Show { uuid: String },
@@ -82,7 +83,6 @@ where
             show_uuids,
             show_account_names,
         } => search(backend, Some(terms), show_uuids, show_account_names).await?,
-        Opt::Totp { uuid } => println!("{}", backend.totp(&uuid).await?.trim()),
         Opt::Show { uuid } => {
             let result = backend.get(&uuid).await?.ok_or(Error::NotFound)?;
             show(result);
@@ -234,9 +234,17 @@ fn show(item: api::Item) {
         }
 
         for field in section.fields {
+            let mut value = field.value;
+
+            if field.field_type == api::ItemFieldType::Totp {
+                if let Ok(tfa) = otp::TwoFactorAuth::try_from(value.as_ref()) {
+                    value = tfa.generate().value;
+                }
+            }
+
             table.add_row(Row::new(vec![
                 TableCell::new(field.name),
-                TableCell::new_with_alignment(field.value, 1, Alignment::Right),
+                TableCell::new_with_alignment(value, 1, Alignment::Right),
             ]));
         }
 

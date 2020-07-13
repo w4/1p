@@ -33,7 +33,14 @@ pub struct Item {
 #[derive(Debug)]
 pub struct ItemField {
     pub name: String,
+    pub field_type: ItemFieldType,
     pub value: String,
+}
+
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub enum ItemFieldType {
+    Totp,
+    Unknown,
 }
 
 #[derive(Debug)]
@@ -46,7 +53,6 @@ pub struct ItemSection {
 pub trait Backend {
     type Error;
 
-    async fn totp(&self, uuid: &str) -> Result<String, Self::Error>;
     async fn account(&self) -> Result<AccountMetadata, Self::Error>;
     async fn vaults(&self) -> Result<Vec<VaultMetadata>, Self::Error>;
     async fn search(&self, terms: Option<&str>) -> Result<Vec<ItemMetadata>, Self::Error>;
