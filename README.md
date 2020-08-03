@@ -1,4 +1,4 @@
-# 1p-cli
+# 1p-cli [![Jenkins](https://img.shields.io/jenkins/build?jobUrl=https%3A%2F%2Fjenkins.doyle.la%2Fjob%2F1p)](https://jenkins.doyle.la/job/1p)
 
 A user-friendly frontend to the [op] command-line tool distributed by
 AgileBits giving you a `pass`-like interface into the world of centralised
